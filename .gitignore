@@ -1,0 +1,5 @@
+__pycache__/
+.pytest_cache/
+_official/
+test/results.json
+*.log

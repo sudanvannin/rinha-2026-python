@@ -1,0 +1,7 @@
+{
+  "participants": ["Felipe Sudan"],
+  "social": ["https://github.com/sudanvannin"],
+  "source-code-repo": "https://github.com/sudanvannin/rinha-2026-python",
+  "stack": ["python", "numpy", "scipy", "orjson", "nginx"],
+  "open_to_work": false
+}
