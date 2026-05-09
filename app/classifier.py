@@ -16,6 +16,8 @@ from scipy.spatial import cKDTree
 DIMS = 14
 MAGIC = b"R26IDX1\n"
 DEFAULT_INDEX_PATH = Path(__file__).resolve().parent.parent / "data" / "candidates.bin"
+KNN_SCORE_MIN = float(os.getenv("RINHA_KNN_SCORE_MIN", "1.5"))
+KNN_SCORE_MAX = float(os.getenv("RINHA_KNN_SCORE_MAX", "10.5"))
 
 MCC_RISK = {
     "5411": 0.15,
@@ -244,7 +246,7 @@ def _knn_fraud_count(vector: np.ndarray) -> int:
 def classify_fraud_count(request: dict[str, Any]) -> int:
     vector = normalize_request(request)
     score = weighted_score(vector)
-    if 1.5 <= score < 12.0:
+    if KNN_SCORE_MIN <= score < KNN_SCORE_MAX:
         fraud_count = _knn_fraud_count(vector)
         if fraud_count < 3 and _high_risk_late_boundary(vector, score):
             return 3

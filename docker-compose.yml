@@ -6,12 +6,16 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.45"
-          memory: "150MB"
+          cpus: "0.30"
+          memory: "100MB"
 
   api2:
     <<: *api
     hostname: api2
+
+  api3:
+    <<: *api
+    hostname: api3
 
   nginx:
     image: nginx:1.27-alpine
