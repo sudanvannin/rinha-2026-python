@@ -1,6 +1,6 @@
 services:
   api1: &api
-    image: ghcr.io/sudanvannin/rinha-2026-python/api@sha256:1c9d75feb14d73e98edadf2d84a283b9d88c2028a5ef21c8618cc30b7c67bbaf
+    image: ghcr.io/sudanvannin/rinha-2026-python/api@sha256:9f4b8c51cd803edf23c2ae5b4ddc9f1359ff44934b25c906e38f1066c5e7b501
     platform: linux/amd64
     hostname: api1
     restart: unless-stopped
