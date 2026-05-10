@@ -10,8 +10,14 @@ os.environ.setdefault("OMP_NUM_THREADS", "1")
 os.environ.setdefault("MKL_NUM_THREADS", "1")
 os.environ.setdefault("NUMEXPR_NUM_THREADS", "1")
 
+import orjson
 import numpy as np
 from usearch.index import Index
+
+try:
+    import rinha_native
+except Exception:
+    rinha_native = None
 
 DIMS = 14
 MAGIC = b"R26IDX1\n"
@@ -261,8 +267,7 @@ def _knn_fraud_count(vector: np.ndarray) -> int:
     return int(index.labels[nearest].sum())
 
 
-def classify_fraud_count(request: dict[str, Any]) -> int:
-    vector = normalize_request(request)
+def _classify_vector(vector: np.ndarray) -> int:
     score = weighted_score(vector)
     if KNN_SCORE_MIN <= score < KNN_SCORE_MAX:
         fraud_count = _knn_fraud_count(vector)
@@ -270,6 +275,23 @@ def classify_fraud_count(request: dict[str, Any]) -> int:
             return 3
         return fraud_count
     return 5 if score >= 2.5 else 0
+
+
+def classify_fraud_count(request: dict[str, Any]) -> int:
+    return _classify_vector(normalize_request(request))
+
+
+def classify_body(body: bytes) -> int:
+    if rinha_native is not None:
+        try:
+            parsed = rinha_native.parse(body)
+        except Exception:
+            parsed = None
+        if parsed is not None:
+            vector = np.frombuffer(parsed, dtype=np.float32, count=DIMS)
+            return _classify_vector(vector)
+
+    return classify_fraud_count(orjson.loads(body))
 
 
 def classify_response(request: dict[str, Any]) -> bytes:

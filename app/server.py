@@ -3,15 +3,12 @@ from __future__ import annotations
 import asyncio
 import os
 
-import orjson
-
-from app.classifier import classify_fraud_count, init_classifier
+from app.classifier import classify_body, init_classifier
 
 HOST = "0.0.0.0"
 PORT = int(os.getenv("PORT", "8080"))
 MAX_BODY_BYTES = 16 * 1024
 HEADER_LIMIT = 32 * 1024
-WRITE_BUFFER_DRAIN_LIMIT = 64 * 1024
 
 READY_BODY = b"OK"
 READY_RESPONSE = (
@@ -51,16 +48,21 @@ JSON_RESPONSES = tuple(_json_response(body) for body in (
 ))
 
 
+def _install_event_loop() -> None:
+    if os.name == "nt":
+        return
+    try:
+        import uvloop
+    except Exception:
+        return
+    asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+
+
 def _content_length(headers: list[bytes]) -> int:
     for line in headers:
         if line[:15].lower() == b"content-length:":
             return int(line[15:].strip())
     return 0
-
-
-async def _drain_if_needed(writer: asyncio.StreamWriter) -> None:
-    if writer.transport.get_write_buffer_size() >= WRITE_BUFFER_DRAIN_LIMIT:
-        await writer.drain()
 
 
 async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
@@ -93,7 +95,7 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
 
             if method == b"GET" and path == b"/ready":
                 writer.write(READY_RESPONSE)
-                await _drain_if_needed(writer)
+                await writer.drain()
                 continue
 
             if method == b"POST" and path == b"/fraud-score":
@@ -105,16 +107,16 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
 
                 body = await reader.readexactly(length)
                 try:
-                    writer.write(JSON_RESPONSES[classify_fraud_count(orjson.loads(body))])
+                    writer.write(JSON_RESPONSES[classify_body(body)])
                 except Exception:
                     writer.write(BAD_REQUEST_RESPONSE)
                     await writer.drain()
                     break
-                await _drain_if_needed(writer)
+                await writer.drain()
                 continue
 
             writer.write(NOT_FOUND_RESPONSE)
-            await _drain_if_needed(writer)
+            await writer.drain()
     finally:
         writer.close()
         try:
@@ -131,4 +133,5 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
+    _install_event_loop()
     asyncio.run(main())

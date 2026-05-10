@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import unittest
 
-from app.classifier import classify_fraud_count, init_classifier, normalize_request
+import orjson
+
+from app.classifier import classify_body, classify_fraud_count, init_classifier, normalize_request
 
 
 LEGIT_PAYLOAD = {
@@ -79,6 +81,10 @@ class ClassifierTest(unittest.TestCase):
 
     def test_denies_high_risk(self) -> None:
         self.assertGreaterEqual(classify_fraud_count(FRAUD_PAYLOAD), 3)
+
+    def test_body_classifier_matches_object_classifier(self) -> None:
+        body = orjson.dumps(FRAUD_PAYLOAD)
+        self.assertEqual(classify_body(body), classify_fraud_count(FRAUD_PAYLOAD))
 
 
 if __name__ == "__main__":
