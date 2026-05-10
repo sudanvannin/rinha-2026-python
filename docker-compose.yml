@@ -1,6 +1,6 @@
 services:
   api1: &api
-    image: ghcr.io/sudanvannin/rinha-2026-python/api@sha256:fd8c73cf9a19acc60441fa5038d6e481e34f4174d27038cd576eacf9d092078e
+    image: ghcr.io/sudanvannin/rinha-2026-python/api@sha256:8958ab37e3a7998fdd21b5c11a6362d9e82a3c1eba03f4398536103f3c871f82
     platform: linux/amd64
     hostname: api1
     restart: unless-stopped
@@ -16,7 +16,7 @@ services:
       resources:
         limits:
           cpus: "0.45"
-          memory: "150MB"
+          memory: "165MB"
 
   api2:
     <<: *api
@@ -39,7 +39,7 @@ services:
       resources:
         limits:
           cpus: "0.10"
-          memory: "30MB"
+          memory: "20MB"
 
 networks:
   backend:
