@@ -155,38 +155,38 @@ static int day_of_week_monday_zero(int year, int month, int day) {
     return (dow + 6) % 7;
 }
 
-static float clamp01(double value) {
+static double clamp01(double value) {
     if (value < 0.0) {
-        return 0.0f;
+        return 0.0;
     }
     if (value > 1.0) {
-        return 1.0f;
+        return 1.0;
     }
-    return (float)value;
+    return value;
 }
 
-static float round4(float value) {
-    return (float)(floor((double)value * 10000.0 + 0.5) / 10000.0);
+static double round4(double value) {
+    return floor(value * 10000.0 + 0.5) / 10000.0;
 }
 
-static float mcc_risk(const char *mcc, Py_ssize_t len) {
+static double mcc_risk(const char *mcc, Py_ssize_t len) {
     if (len != 4) {
-        return 0.50f;
+        return 0.50;
     }
-    if (memcmp(mcc, "5411", 4) == 0) return 0.15f;
-    if (memcmp(mcc, "5812", 4) == 0) return 0.30f;
-    if (memcmp(mcc, "5912", 4) == 0) return 0.20f;
-    if (memcmp(mcc, "5944", 4) == 0) return 0.45f;
-    if (memcmp(mcc, "7801", 4) == 0) return 0.80f;
-    if (memcmp(mcc, "7802", 4) == 0) return 0.75f;
-    if (memcmp(mcc, "7995", 4) == 0) return 0.85f;
-    if (memcmp(mcc, "4511", 4) == 0) return 0.35f;
-    if (memcmp(mcc, "5311", 4) == 0) return 0.25f;
-    if (memcmp(mcc, "5999", 4) == 0) return 0.50f;
-    return 0.50f;
+    if (memcmp(mcc, "5411", 4) == 0) return 0.15;
+    if (memcmp(mcc, "5812", 4) == 0) return 0.30;
+    if (memcmp(mcc, "5912", 4) == 0) return 0.20;
+    if (memcmp(mcc, "5944", 4) == 0) return 0.45;
+    if (memcmp(mcc, "7801", 4) == 0) return 0.80;
+    if (memcmp(mcc, "7802", 4) == 0) return 0.75;
+    if (memcmp(mcc, "7995", 4) == 0) return 0.85;
+    if (memcmp(mcc, "4511", 4) == 0) return 0.35;
+    if (memcmp(mcc, "5311", 4) == 0) return 0.25;
+    if (memcmp(mcc, "5999", 4) == 0) return 0.50;
+    return 0.50;
 }
 
-static int build_vector(const char *json, float *vector) {
+static int build_vector(const char *json, double *vector) {
     const char *transaction = find_value(json, "\"transaction\"");
     const char *customer = find_value(json, "\"customer\"");
     const char *merchant = find_value(json, "\"merchant\"");
@@ -244,13 +244,13 @@ static int build_vector(const char *json, float *vector) {
 
     vector[0] = clamp01(amount / 10000.0);
     vector[1] = clamp01((double)installments / 12.0);
-    vector[2] = customer_avg_amount > 0.0 ? clamp01((amount / customer_avg_amount) / 10.0) : 1.0f;
-    vector[3] = (float)((double)hour / 23.0);
-    vector[4] = (float)((double)day_of_week_monday_zero(year, month, day) / 6.0);
+    vector[2] = customer_avg_amount > 0.0 ? clamp01((amount / customer_avg_amount) / 10.0) : 1.0;
+    vector[3] = (double)hour / 23.0;
+    vector[4] = (double)day_of_week_monday_zero(year, month, day) / 6.0;
 
     if (strncmp(last_transaction, "null", 4) == 0) {
-        vector[5] = -1.0f;
-        vector[6] = -1.0f;
+        vector[5] = -1.0;
+        vector[6] = -1.0;
     } else {
         double minutes;
         if (!parse_string_key(last_transaction, "\"timestamp\"", &last_timestamp, &last_timestamp_len)) return 0;
@@ -263,9 +263,9 @@ static int build_vector(const char *json, float *vector) {
 
     vector[7] = clamp01(km_from_home / 1000.0);
     vector[8] = clamp01((double)tx_count_24h / 20.0);
-    vector[9] = is_online ? 1.0f : 0.0f;
-    vector[10] = card_present ? 1.0f : 0.0f;
-    vector[11] = array_has_string(known_start, known_end, merchant_id, merchant_id_len) ? 0.0f : 1.0f;
+    vector[9] = is_online ? 1.0 : 0.0;
+    vector[10] = card_present ? 1.0 : 0.0;
+    vector[11] = array_has_string(known_start, known_end, merchant_id, merchant_id_len) ? 0.0 : 1.0;
     vector[12] = mcc_risk(mcc, mcc_len);
     vector[13] = clamp01(merchant_avg_amount / 10000.0);
 
@@ -278,7 +278,7 @@ static int build_vector(const char *json, float *vector) {
 static PyObject *rinha_parse(PyObject *self, PyObject *args) {
     const char *json = NULL;
     Py_ssize_t json_len = 0;
-    float vector[DIMS];
+    double vector[DIMS];
 
     (void)self;
     if (!PyArg_ParseTuple(args, "y#", &json, &json_len)) {

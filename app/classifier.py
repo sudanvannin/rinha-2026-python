@@ -10,9 +10,10 @@ os.environ.setdefault("OMP_NUM_THREADS", "1")
 os.environ.setdefault("MKL_NUM_THREADS", "1")
 os.environ.setdefault("NUMEXPR_NUM_THREADS", "1")
 
-import orjson
 import numpy as np
-from usearch.index import Index
+from scipy.spatial import cKDTree
+
+import orjson
 
 try:
     import rinha_native
@@ -22,12 +23,6 @@ except Exception:
 DIMS = 14
 MAGIC = b"R26IDX1\n"
 DEFAULT_INDEX_PATH = Path(__file__).resolve().parent.parent / "data" / "candidates.bin"
-DEFAULT_USEARCH_PATH = Path(__file__).resolve().parent.parent / "data" / "candidates.usearch"
-KNN_SCORE_MIN = float(os.getenv("RINHA_KNN_SCORE_MIN", "1.5"))
-KNN_SCORE_MAX = float(os.getenv("RINHA_KNN_SCORE_MAX", "12.0"))
-USEARCH_CONNECTIVITY = int(os.getenv("RINHA_USEARCH_CONNECTIVITY", "16"))
-USEARCH_EXPANSION_ADD = int(os.getenv("RINHA_USEARCH_EXPANSION_ADD", "96"))
-USEARCH_EXPANSION_SEARCH = int(os.getenv("RINHA_USEARCH_EXPANSION_SEARCH", "512"))
 
 MCC_RISK = {
     "5411": 0.15,
@@ -54,8 +49,9 @@ RESPONSES = (
 
 @dataclass(slots=True)
 class CandidateIndex:
+    vectors: np.ndarray
     labels: np.ndarray
-    index: Index
+    tree: cKDTree
 
 
 _INDEX: CandidateIndex | None = None
@@ -124,7 +120,7 @@ def normalize_request(request: dict[str, Any]) -> np.ndarray:
     last = request.get("last_transaction")
     year, month, day, hour, _, _ = _timestamp_parts(tx["requested_at"])
 
-    vector = np.empty(DIMS, dtype=np.float32)
+    vector = np.empty(DIMS, dtype=np.float64)
     amount = float(tx["amount"])
     avg_amount = float(customer["avg_amount"])
 
@@ -209,7 +205,7 @@ def weighted_score(v: np.ndarray) -> float:
     return score
 
 
-def load_index(path: Path = DEFAULT_INDEX_PATH, index_path: Path = DEFAULT_USEARCH_PATH) -> CandidateIndex:
+def load_index(path: Path = DEFAULT_INDEX_PATH) -> CandidateIndex:
     raw = path.read_bytes()
     if len(raw) < 16 or raw[:8] != MAGIC:
         raise RuntimeError(f"invalid candidate index: {path}")
@@ -226,31 +222,16 @@ def load_index(path: Path = DEFAULT_INDEX_PATH, index_path: Path = DEFAULT_USEAR
     if len(raw) != expected_len:
         raise RuntimeError(f"invalid index length: {path}")
 
+    vectors = np.frombuffer(raw, dtype="<f4", count=vector_count, offset=vector_offset).reshape(count, DIMS)
+    vectors = vectors.astype(np.float64, copy=True)
     labels = np.frombuffer(raw, dtype=np.uint8, count=count, offset=label_offset).copy()
-
-    if index_path.exists():
-        index = Index.restore(index_path, view=True)
-        if index is None:
-            raise RuntimeError(f"invalid usearch index: {index_path}")
-        index.expansion_search = USEARCH_EXPANSION_SEARCH
-    else:
-        vectors = np.frombuffer(raw, dtype="<f4", count=vector_count, offset=vector_offset).reshape(count, DIMS)
-        index = Index(
-            ndim=DIMS,
-            metric="l2sq",
-            dtype="f32",
-            connectivity=USEARCH_CONNECTIVITY,
-            expansion_add=USEARCH_EXPANSION_ADD,
-            expansion_search=USEARCH_EXPANSION_SEARCH,
-        )
-        index.add(np.arange(count, dtype=np.uint64), vectors)
-
-    return CandidateIndex(labels=labels, index=index)
+    tree = cKDTree(vectors, leafsize=32, compact_nodes=True, balanced_tree=True)
+    return CandidateIndex(vectors=vectors, labels=labels, tree=tree)
 
 
-def init_classifier(path: Path = DEFAULT_INDEX_PATH, index_path: Path = DEFAULT_USEARCH_PATH) -> CandidateIndex:
+def init_classifier(path: Path = DEFAULT_INDEX_PATH) -> CandidateIndex:
     global _INDEX
-    _INDEX = load_index(path, index_path)
+    _INDEX = load_index(path)
     return _INDEX
 
 
@@ -263,13 +244,13 @@ def _index() -> CandidateIndex:
 
 def _knn_fraud_count(vector: np.ndarray) -> int:
     index = _index()
-    nearest = index.index.search(vector, 5).keys
+    _, nearest = index.tree.query(vector, k=5, workers=1)
     return int(index.labels[nearest].sum())
 
 
 def _classify_vector(vector: np.ndarray) -> int:
     score = weighted_score(vector)
-    if KNN_SCORE_MIN <= score < KNN_SCORE_MAX:
+    if 1.5 <= score < 12.0:
         fraud_count = _knn_fraud_count(vector)
         if fraud_count < 3 and _high_risk_late_boundary(vector, score):
             return 3
@@ -288,7 +269,7 @@ def classify_body(body: bytes) -> int:
         except Exception:
             parsed = None
         if parsed is not None:
-            vector = np.frombuffer(parsed, dtype=np.float32, count=DIMS)
+            vector = np.frombuffer(parsed, dtype=np.float64, count=DIMS)
             return _classify_vector(vector)
 
     return classify_fraud_count(orjson.loads(body))
