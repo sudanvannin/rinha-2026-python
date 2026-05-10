@@ -257,7 +257,7 @@ def _index() -> CandidateIndex:
 
 def _knn_fraud_count(vector: np.ndarray) -> int:
     index = _index()
-    nearest = np.asarray(index.index.search(vector, 5).keys, dtype=np.int64)
+    nearest = index.index.search(vector, 5).keys
     return int(index.labels[nearest].sum())
 
 

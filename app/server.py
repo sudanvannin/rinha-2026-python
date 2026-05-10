@@ -11,6 +11,7 @@ HOST = "0.0.0.0"
 PORT = int(os.getenv("PORT", "8080"))
 MAX_BODY_BYTES = 16 * 1024
 HEADER_LIMIT = 32 * 1024
+WRITE_BUFFER_DRAIN_LIMIT = 64 * 1024
 
 READY_BODY = b"OK"
 READY_RESPONSE = (
@@ -57,6 +58,11 @@ def _content_length(headers: list[bytes]) -> int:
     return 0
 
 
+async def _drain_if_needed(writer: asyncio.StreamWriter) -> None:
+    if writer.transport.get_write_buffer_size() >= WRITE_BUFFER_DRAIN_LIMIT:
+        await writer.drain()
+
+
 async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
     try:
         while True:
@@ -87,7 +93,7 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
 
             if method == b"GET" and path == b"/ready":
                 writer.write(READY_RESPONSE)
-                await writer.drain()
+                await _drain_if_needed(writer)
                 continue
 
             if method == b"POST" and path == b"/fraud-score":
@@ -104,11 +110,11 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
                     writer.write(BAD_REQUEST_RESPONSE)
                     await writer.drain()
                     break
-                await writer.drain()
+                await _drain_if_needed(writer)
                 continue
 
             writer.write(NOT_FOUND_RESPONSE)
-            await writer.drain()
+            await _drain_if_needed(writer)
     finally:
         writer.close()
         try:

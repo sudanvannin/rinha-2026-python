@@ -3,4 +3,5 @@ __pycache__/
 _official/
 test/results.json
 data/*.usearch
+!data/candidates.usearch
 *.log
