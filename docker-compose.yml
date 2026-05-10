@@ -1,6 +1,6 @@
 services:
   api1: &api
-    image: ghcr.io/sudanvannin/rinha-2026-python/api@sha256:daae7d3ce4b217eacc3dc0931cf6942dc9b889a8e8b49cd6800d7e68f76c53a6
+    image: ghcr.io/sudanvannin/rinha-2026-python/api@sha256:1c9d75feb14d73e98edadf2d84a283b9d88c2028a5ef21c8618cc30b7c67bbaf
     platform: linux/amd64
     hostname: api1
     restart: unless-stopped
@@ -10,14 +10,13 @@ services:
       OMP_NUM_THREADS: "1"
       MKL_NUM_THREADS: "1"
       NUMEXPR_NUM_THREADS: "1"
-      RINHA_USEARCH_EXPANSION_SEARCH: "384"
     networks:
       - backend
     deploy:
       resources:
         limits:
-          cpus: "0.47"
-          memory: "165MB"
+          cpus: "0.45"
+          memory: "150MB"
 
   api2:
     <<: *api
@@ -39,8 +38,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.06"
-          memory: "20MB"
+          cpus: "0.10"
+          memory: "30MB"
 
 networks:
   backend:
