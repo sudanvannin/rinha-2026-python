@@ -76,7 +76,7 @@ def main():
     parser.add_argument("--references", required=True, type=Path)
     parser.add_argument("--output", default=Path("data/candidates.bin"), type=Path)
     parser.add_argument("--min-score", default=1.0, type=float)
-    parser.add_argument("--max-score", default=11.0, type=float)
+    parser.add_argument("--max-score", default=12.0, type=float)
     args = parser.parse_args()
 
     refs = load_references(args.references)

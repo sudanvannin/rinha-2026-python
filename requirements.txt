@@ -1,3 +1,3 @@
 numpy==1.26.4
 orjson==3.11.8
-scipy==1.13.1
+usearch==2.25.2

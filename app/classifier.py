@@ -11,13 +11,16 @@ os.environ.setdefault("MKL_NUM_THREADS", "1")
 os.environ.setdefault("NUMEXPR_NUM_THREADS", "1")
 
 import numpy as np
-from scipy.spatial import cKDTree
+from usearch.index import Index
 
 DIMS = 14
 MAGIC = b"R26IDX1\n"
 DEFAULT_INDEX_PATH = Path(__file__).resolve().parent.parent / "data" / "candidates.bin"
 KNN_SCORE_MIN = float(os.getenv("RINHA_KNN_SCORE_MIN", "1.5"))
-KNN_SCORE_MAX = float(os.getenv("RINHA_KNN_SCORE_MAX", "10.5"))
+KNN_SCORE_MAX = float(os.getenv("RINHA_KNN_SCORE_MAX", "12.0"))
+USEARCH_CONNECTIVITY = int(os.getenv("RINHA_USEARCH_CONNECTIVITY", "16"))
+USEARCH_EXPANSION_ADD = int(os.getenv("RINHA_USEARCH_EXPANSION_ADD", "96"))
+USEARCH_EXPANSION_SEARCH = int(os.getenv("RINHA_USEARCH_EXPANSION_SEARCH", "512"))
 
 MCC_RISK = {
     "5411": 0.15,
@@ -44,9 +47,8 @@ RESPONSES = (
 
 @dataclass(slots=True)
 class CandidateIndex:
-    vectors: np.ndarray
     labels: np.ndarray
-    tree: cKDTree
+    index: Index
 
 
 _INDEX: CandidateIndex | None = None
@@ -115,7 +117,7 @@ def normalize_request(request: dict[str, Any]) -> np.ndarray:
     last = request.get("last_transaction")
     year, month, day, hour, _, _ = _timestamp_parts(tx["requested_at"])
 
-    vector = np.empty(DIMS, dtype=np.float64)
+    vector = np.empty(DIMS, dtype=np.float32)
     amount = float(tx["amount"])
     avg_amount = float(customer["avg_amount"])
 
@@ -218,10 +220,17 @@ def load_index(path: Path = DEFAULT_INDEX_PATH) -> CandidateIndex:
         raise RuntimeError(f"invalid index length: {path}")
 
     vectors = np.frombuffer(raw, dtype="<f4", count=vector_count, offset=vector_offset).reshape(count, DIMS)
-    vectors = vectors.astype(np.float64, copy=True)
     labels = np.frombuffer(raw, dtype=np.uint8, count=count, offset=label_offset).copy()
-    tree = cKDTree(vectors, leafsize=32, compact_nodes=True, balanced_tree=True)
-    return CandidateIndex(vectors=vectors, labels=labels, tree=tree)
+    index = Index(
+        ndim=DIMS,
+        metric="l2sq",
+        dtype="f32",
+        connectivity=USEARCH_CONNECTIVITY,
+        expansion_add=USEARCH_EXPANSION_ADD,
+        expansion_search=USEARCH_EXPANSION_SEARCH,
+    )
+    index.add(np.arange(count, dtype=np.uint64), vectors)
+    return CandidateIndex(labels=labels, index=index)
 
 
 def init_classifier(path: Path = DEFAULT_INDEX_PATH) -> CandidateIndex:
@@ -239,7 +248,7 @@ def _index() -> CandidateIndex:
 
 def _knn_fraud_count(vector: np.ndarray) -> int:
     index = _index()
-    _, nearest = index.tree.query(vector, k=5, workers=1)
+    nearest = np.asarray(index.index.search(vector, 5).keys, dtype=np.int64)
     return int(index.labels[nearest].sum())
 
 
