@@ -16,6 +16,7 @@ from usearch.index import Index
 DIMS = 14
 MAGIC = b"R26IDX1\n"
 DEFAULT_INDEX_PATH = Path(__file__).resolve().parent.parent / "data" / "candidates.bin"
+DEFAULT_USEARCH_PATH = Path(__file__).resolve().parent.parent / "data" / "candidates.usearch"
 KNN_SCORE_MIN = float(os.getenv("RINHA_KNN_SCORE_MIN", "1.5"))
 KNN_SCORE_MAX = float(os.getenv("RINHA_KNN_SCORE_MAX", "12.0"))
 USEARCH_CONNECTIVITY = int(os.getenv("RINHA_USEARCH_CONNECTIVITY", "16"))
@@ -202,7 +203,7 @@ def weighted_score(v: np.ndarray) -> float:
     return score
 
 
-def load_index(path: Path = DEFAULT_INDEX_PATH) -> CandidateIndex:
+def load_index(path: Path = DEFAULT_INDEX_PATH, index_path: Path = DEFAULT_USEARCH_PATH) -> CandidateIndex:
     raw = path.read_bytes()
     if len(raw) < 16 or raw[:8] != MAGIC:
         raise RuntimeError(f"invalid candidate index: {path}")
@@ -219,23 +220,31 @@ def load_index(path: Path = DEFAULT_INDEX_PATH) -> CandidateIndex:
     if len(raw) != expected_len:
         raise RuntimeError(f"invalid index length: {path}")
 
-    vectors = np.frombuffer(raw, dtype="<f4", count=vector_count, offset=vector_offset).reshape(count, DIMS)
     labels = np.frombuffer(raw, dtype=np.uint8, count=count, offset=label_offset).copy()
-    index = Index(
-        ndim=DIMS,
-        metric="l2sq",
-        dtype="f32",
-        connectivity=USEARCH_CONNECTIVITY,
-        expansion_add=USEARCH_EXPANSION_ADD,
-        expansion_search=USEARCH_EXPANSION_SEARCH,
-    )
-    index.add(np.arange(count, dtype=np.uint64), vectors)
+
+    if index_path.exists():
+        index = Index.restore(index_path, view=True)
+        if index is None:
+            raise RuntimeError(f"invalid usearch index: {index_path}")
+        index.expansion_search = USEARCH_EXPANSION_SEARCH
+    else:
+        vectors = np.frombuffer(raw, dtype="<f4", count=vector_count, offset=vector_offset).reshape(count, DIMS)
+        index = Index(
+            ndim=DIMS,
+            metric="l2sq",
+            dtype="f32",
+            connectivity=USEARCH_CONNECTIVITY,
+            expansion_add=USEARCH_EXPANSION_ADD,
+            expansion_search=USEARCH_EXPANSION_SEARCH,
+        )
+        index.add(np.arange(count, dtype=np.uint64), vectors)
+
     return CandidateIndex(labels=labels, index=index)
 
 
-def init_classifier(path: Path = DEFAULT_INDEX_PATH) -> CandidateIndex:
+def init_classifier(path: Path = DEFAULT_INDEX_PATH, index_path: Path = DEFAULT_USEARCH_PATH) -> CandidateIndex:
     global _INDEX
-    _INDEX = load_index(path)
+    _INDEX = load_index(path, index_path)
     return _INDEX
 
 
