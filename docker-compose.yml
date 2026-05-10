@@ -10,12 +10,13 @@ services:
       OMP_NUM_THREADS: "1"
       MKL_NUM_THREADS: "1"
       NUMEXPR_NUM_THREADS: "1"
+      RINHA_USEARCH_EXPANSION_SEARCH: "384"
     networks:
       - backend
     deploy:
       resources:
         limits:
-          cpus: "0.45"
+          cpus: "0.47"
           memory: "165MB"
 
   api2:
@@ -38,7 +39,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.10"
+          cpus: "0.06"
           memory: "20MB"
 
 networks:
